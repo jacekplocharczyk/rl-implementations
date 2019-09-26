@@ -3,10 +3,15 @@ from abc import ABC, abstractproperty
 import gym
 import numpy as np
 
-from typing import Tuple
+from typing import Any
 
 
 class Space(ABC):
+    TYPE = None
+    
+    def __init__(self, space: Any, *args, **kwargs):
+        assert self.check_type(space)
+
     @abstractproperty
     def discrete_space(self) -> np.array:
         """
@@ -22,10 +27,15 @@ class Space(ABC):
         """
         pass
 
+    @classmethod
+    def check_type(cls, obj: Any):
+        return isinstance(obj, cls.TYPE)
 
 class BoxSpace(Space):
+    TYPE = gym.spaces.Box
+
     def __init__(self, space: gym.spaces.Space, *args, **kwargs):
-        assert isinstance(space, gym.spaces.Box)
+        super().__init__(space, *args, **kwargs)
         self.dtype = space.dtype
         self.shape = space.shape
         self.low = space.low
@@ -48,9 +58,12 @@ class BoxSpace(Space):
         return bounds
 
 
-class DiscreteSpace:
+class DiscreteSpace(Space):
+    TYPE = gym.spaces.Discrete
+
     def __init__(self, space: gym.spaces.Space, *args, **kwargs):
-        assert isinstance(space, gym.spaces.Discrete)
+        super().__init__(space, *args, **kwargs)
+
         self.n = space.n
         self.repr = repr(space)
 

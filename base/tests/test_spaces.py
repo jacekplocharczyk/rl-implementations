@@ -44,3 +44,6 @@ def test_DiscreteSpace_init(env):
     space = spaces.DiscreteSpace(env.action_space)
     assert space.n == 2
 
+def test_DiscreteSpace_super_init(env):
+    with pytest.raises(AssertionError):
+        spaces.DiscreteSpace(env.observation_space)
