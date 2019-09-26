@@ -1,11 +1,11 @@
 import gym
 
 
-class Action:
+class Actions:
     def __init__(self, env: gym.core.Env, *args, **kwargs):
         if isinstance(env.action_space, gym.spaces.discrete.Discrete):
-            self.discrete = True
-            self.actions_ = env.action_space.n
+            self.discrete_ = True
+            self.n_ = env.action_space.n
             self.repr = repr(env.action_space)
         else:
             raise NotImplementedError
@@ -14,7 +14,10 @@ class Action:
         return self.repr
 
     @property
-    def actions(self):
+    def n(self):
         if self.discrete:
-            return self.actions
+            return self.n_
 
+    @property
+    def discrete(self):
+        return self.discrete_
