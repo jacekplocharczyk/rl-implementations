@@ -9,8 +9,11 @@ from typing import Any
 class Space(ABC):
     TYPE = None
     
-    def __init__(self, space: Any, *args, **kwargs):
-        assert self.check_type(space)
+    def __init__(self, space: gym.spaces.Space, *args, **kwargs):
+        self.repr = repr(space)
+        
+    def __repr__(self):
+        return self.repr
 
     @abstractproperty
     def discrete_space(self) -> np.array:
@@ -31,19 +34,24 @@ class Space(ABC):
     def check_type(cls, obj: Any):
         return isinstance(obj, cls.TYPE)
 
+    def __eq__(self, other: Any) -> bool:
+        discrete_equal = np.array_equal(self.discrete_space, 
+                                        other.discrete_space)
+        continuous_equal = np.array_equal(self.continuous_space, 
+                                          other.continuous_space)
+        return discrete_equal and continuous_equal
+
+
 class BoxSpace(Space):
     TYPE = gym.spaces.Box
 
     def __init__(self, space: gym.spaces.Space, *args, **kwargs):
-        super().__init__(space, *args, **kwargs)
+        assert self.check_type(space), 'Space is not the type Box.'
         self.dtype = space.dtype
         self.shape = space.shape
         self.low = space.low
         self.high = space.high
-        self.repr = repr(space)
-        
-    def __repr__(self):
-        return self.repr
+        super().__init__(space, *args, **kwargs)
 
     def discrete_space(self) -> np.array:
         return np.array([])
@@ -62,13 +70,9 @@ class DiscreteSpace(Space):
     TYPE = gym.spaces.Discrete
 
     def __init__(self, space: gym.spaces.Space, *args, **kwargs):
-        super().__init__(space, *args, **kwargs)
-
+        assert self.check_type(space), 'Space is not the type Discrete.'
         self.n = space.n
-        self.repr = repr(space)
-
-    def __repr__(self):
-        return self.repr
+        super().__init__(space, *args, **kwargs)
 
     def discrete_space(self) -> np.array:
         return np.array([n])
