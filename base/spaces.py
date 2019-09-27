@@ -75,7 +75,7 @@ class DiscreteSpace(Space):
         super().__init__(space, *args, **kwargs)
 
     def discrete_space(self) -> np.array:
-        return np.array([n])
+        return np.array([self.n])
 
     def continuous_space(self) -> np.array:
         return np.array([[]])
