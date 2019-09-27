@@ -14,17 +14,6 @@ class Actions(space_aggregator.SpaceAggregator):
     def __repr__(self):
         return f"Actions({repr(self.action_space)})"
 
-    @property
-    def possible_actions(self) -> Tuple[np.array, np.array]:
-        """
-        Return two object tuple with np.arrays. First object reffers to the 
-        discrete actions and the second to the continuous acitons.
-        """
-        discrete = self.discrete_space
-        continuous = self.continuous_space
-
-        return discrete, continuous
-
     def take(self, taken_actions: List) -> Tuple:
         """
         Check if selected action is inside the action space and return them.

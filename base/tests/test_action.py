@@ -10,9 +10,11 @@ from base import action
 def env_discrete():
     return gym.make('CartPole-v1')
 
+
 @pytest.fixture
 def env_continuous():
     return gym.make('MountainCarContinuous-v0')
+
 
 def test_actions_take_discrete(env_discrete):
     actions = action.Actions(env_discrete)

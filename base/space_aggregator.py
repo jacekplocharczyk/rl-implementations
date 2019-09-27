@@ -1,6 +1,9 @@
-from abc import ABC
+from abc import ABC, abstractproperty
+from typing import Tuple
+
 
 import gym
+import numpy as np
 
 from base import spaces
 
@@ -21,3 +24,22 @@ class SpaceAggregator(ABC):
                 return s(space)
         
         raise NotImplementedError(f'Unknown space type: {repr(space)}')
+
+    @property
+    def possible_states(self) -> Tuple[np.array, np.array]:
+        """
+        Return two object tuple with np.arrays. First object reffers to the 
+        discrete states and the second to the continuous states.
+        """
+        discrete = self.discrete_space
+        continuous = self.continuous_space
+
+        return discrete, continuous
+
+    @abstractproperty
+    def discrete_space(self) -> np.array:
+        pass
+
+    @abstractproperty
+    def continuous_space(self) -> np.array:
+        pass
