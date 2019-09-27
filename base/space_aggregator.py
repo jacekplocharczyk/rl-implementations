@@ -26,7 +26,7 @@ class SpaceAggregator(ABC):
         raise NotImplementedError(f'Unknown space type: {repr(space)}')
 
     @property
-    def possible_states(self) -> Tuple[np.array, np.array]:
+    def possible(self) -> Tuple[np.array, np.array]:
         """
         Return two object tuple with np.arrays. First object reffers to the 
         discrete states and the second to the continuous states.
