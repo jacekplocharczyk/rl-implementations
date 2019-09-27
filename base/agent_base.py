@@ -14,9 +14,14 @@ class Agent(ABC):
     def __init__(self, env: gym.core.Env, *args, **kwargs):
         self.actions = action.Actions(env)
         self.observations = observation.Observations(env)
+        self.policy = self.get_policy()
 
     def __call__(self, *args, **kwargs):
         return self.take_action(*args, **kwargs)
+
+    @abstractmethod
+    def get_policy(self, *args, **kwargs):
+        pass
 
     @abstractmethod
     def take_action(self, *args, **kwargs):

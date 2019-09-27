@@ -37,6 +37,18 @@ class SpaceAggregator(ABC):
 
         return discrete, continuous
 
+    @property
+    def discrete(self):
+        assert self.discrete_space.size == 0 or self.continuous_space.size == 0
+        if self.discrete_space.size != 0:
+            return True
+        else:
+            False
+
+    @property
+    def size(self) -> int:
+        return self.discrete_space.size + self.continuous_space.size
+
     @abstractproperty
     def discrete_space(self) -> np.array:
         pass
