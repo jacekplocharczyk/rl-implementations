@@ -14,7 +14,7 @@ class Actions(space_aggregator.SpaceAggregator):
     def __repr__(self):
         return f"Actions({repr(self.action_space)})"
 
-    def take(self, taken_actions: List) -> Tuple:
+    def take(self, taken_actions: np.array) -> Tuple:
         """
         Check if selected action is inside the action space and return them.
         Order of variables: [Discrete, Continuous].
@@ -32,8 +32,8 @@ class Actions(space_aggregator.SpaceAggregator):
         
         return taken_actions
 
-    def check_actions(self, taken_discrete_actions: np.array,
-                      taken_continuous_actions: np.array):
+    def check_actions(self, taken_discrete_actions: List[int],
+                      taken_continuous_actions: List[float]):
 
         for i in range(len(taken_discrete_actions)):
             self.check_discrete_action(taken_discrete_actions[i], 
