@@ -27,14 +27,13 @@ class Agent(ABC):
         pass
 
 
-
 class RandomAgent(Agent):
     def take_action(self, *args, **kwargs) -> List:
         d_actions = self.sample_discrete()
         c_actions = self.sample_continuous()
 
         self.actions.check_actions(d_actions, c_actions)
-        
+
         return d_actions + c_actions
 
     def sample_discrete(self) -> List[int]:
@@ -48,7 +47,7 @@ class RandomAgent(Agent):
                 d_actions.append(a)
 
         return d_actions
-    
+
     def sample_continuous(self) -> List[float]:
         discrete_possibilities, continuous_possibilities = self.actions.possible
         c_actions = []

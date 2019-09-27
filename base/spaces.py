@@ -8,10 +8,10 @@ from typing import Any
 
 class Space(ABC):
     TYPE = None
-    
+
     def __init__(self, space: gym.spaces.Space, *args, **kwargs):
         self.repr = repr(space)
-        
+
     def __repr__(self):
         return self.repr
 
@@ -35,10 +35,8 @@ class Space(ABC):
         return isinstance(obj, cls.TYPE)
 
     def __eq__(self, other: Any) -> bool:
-        discrete_equal = np.array_equal(self.discrete_space, 
-                                        other.discrete_space)
-        continuous_equal = np.array_equal(self.continuous_space, 
-                                          other.continuous_space)
+        discrete_equal = np.array_equal(self.discrete_space, other.discrete_space)
+        continuous_equal = np.array_equal(self.continuous_space, other.continuous_space)
         return discrete_equal and continuous_equal
 
 
@@ -46,7 +44,7 @@ class BoxSpace(Space):
     TYPE = gym.spaces.Box
 
     def __init__(self, space: gym.spaces.Space, *args, **kwargs):
-        assert self.check_type(space), 'Space is not the type Box.'
+        assert self.check_type(space), "Space is not the type Box."
         self.dtype = space.dtype
         self.shape = space.shape
         self.low = space.low
@@ -62,7 +60,7 @@ class BoxSpace(Space):
             high = np.reshape(self.high, (1, len(self.high)))
             bounds = np.concatenate([low, high])
         else:
-            raise NotImplementedError('Multidimensional spaces not implemented')
+            raise NotImplementedError("Multidimensional spaces not implemented")
         return bounds
 
 
@@ -70,7 +68,7 @@ class DiscreteSpace(Space):
     TYPE = gym.spaces.Discrete
 
     def __init__(self, space: gym.spaces.Space, *args, **kwargs):
-        assert self.check_type(space), 'Space is not the type Discrete.'
+        assert self.check_type(space), "Space is not the type Discrete."
         self.n = space.n
         super().__init__(space, *args, **kwargs)
 

@@ -15,6 +15,7 @@ class SpaceAggregator(ABC):
     """
     Class with space checking mechanism.
     """
+
     SPACES = ALL_SPACES
 
     @classmethod
@@ -22,13 +23,13 @@ class SpaceAggregator(ABC):
         for s in cls.SPACES:
             if s.check_type(space):
                 return s(space)
-        
-        raise NotImplementedError(f'Unknown space type: {repr(space)}')
+
+        raise NotImplementedError(f"Unknown space type: {repr(space)}")
 
     @property
     def possible(self) -> Tuple[np.array, np.array]:
         """
-        Return two object tuple with np.arrays. First object reffers to the 
+        Return two object tuple with np.arrays. First object reffers to the
         discrete states and the second to the continuous states.
         """
         discrete = self.discrete_space
