@@ -1,5 +1,4 @@
 from abc import ABC, abstractproperty
-from typing import Tuple
 
 
 import gym
@@ -30,7 +29,7 @@ class SpaceAggregator(ABC):
         raise NotImplementedError(f"Unknown space type: {repr(space)}")
 
     @property
-    def discrete(self):
+    def discrete(self) -> bool:
         assert self.discrete_space.size == 0 or self.continuous_space.size == 0
         if self.discrete_space.size != 0:
             return True

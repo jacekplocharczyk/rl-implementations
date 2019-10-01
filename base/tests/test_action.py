@@ -1,6 +1,5 @@
 import gym
 import pytest
-import numpy as np
 
 from base import action
 
