@@ -59,6 +59,25 @@ class Agent(ABC):
             # continuous space array has (min, max) values for each variable
             return self.actions.continuous_space.size // 2
 
+    @property
+    def discrete_observations(self) -> bool:
+        """
+        Return true if environment returns discrete observations.
+        """
+        return self.observations.discrete
+
+    def get_observations(self) -> int:
+        """
+        Return the number of possible discrete options or continuous variables.
+        """
+        if self.discrete_observations:
+            if self.observations.discrete_space.size > 1:
+                raise NotImplementedError
+            return self.observations.discrete_space[0]
+        else:
+            # continuous space array has (min, max) values for each variable
+            return self.observations.continuous_space.size // 2
+
     def describe(self) -> str:
         """
         Print out info about the agent.

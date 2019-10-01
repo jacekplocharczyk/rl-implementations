@@ -32,3 +32,8 @@ def test_agent_get_actions_discrete(env_discrete):
 def test_agent_get_actions_continuous(env_continuous):
     agent = agent_base.RandomAgent(env_continuous)
     assert agent.get_actions() == 1
+
+
+def test_agent_get_observations_continuous(env_continuous):
+    agent = agent_base.RandomAgent(env_continuous)
+    assert agent.get_observations() == 2
