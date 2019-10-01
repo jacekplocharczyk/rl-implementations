@@ -7,6 +7,7 @@ from base import space_aggregator
 class Observations(space_aggregator.SpaceAggregator):
     def __init__(self, env: gym.core.Env, *args, **kwargs):
         self.observation_space = self.import_space_type(env.observation_space)
+        super().__init__()
 
     def __repr__(self):
         return f"Observation({repr(self.observation_space)})"

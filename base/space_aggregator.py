@@ -18,6 +18,9 @@ class SpaceAggregator(ABC):
 
     SPACES = ALL_SPACES
 
+    def __init__(self, *args, **kwargs):
+        assert self.discrete_space.size == 0 or self.continuous_space.size == 0
+
     @classmethod
     def import_space_type(cls, space: gym.spaces.Space) -> spaces.Space:
         for s in cls.SPACES:
@@ -27,27 +30,12 @@ class SpaceAggregator(ABC):
         raise NotImplementedError(f"Unknown space type: {repr(space)}")
 
     @property
-    def possible(self) -> Tuple[np.array, np.array]:
-        """
-        Return two object tuple with np.arrays. First object reffers to the
-        discrete states and the second to the continuous states.
-        """
-        discrete = self.discrete_space
-        continuous = self.continuous_space
-
-        return discrete, continuous
-
-    @property
     def discrete(self):
         assert self.discrete_space.size == 0 or self.continuous_space.size == 0
         if self.discrete_space.size != 0:
             return True
         else:
             False
-
-    @property
-    def size(self) -> int:
-        return self.discrete_space.size + self.continuous_space.size
 
     @abstractproperty
     def discrete_space(self) -> np.array:
