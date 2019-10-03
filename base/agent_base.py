@@ -105,7 +105,6 @@ class RandomAgent(Agent):
         if discrete_possibilities.size != 0:
             for options_no in discrete_possibilities:
                 a = np.random.randint(options_no)
-                # d_actions = np.append(d_actions, a)
                 d_actions.append(a)
 
         return d_actions
@@ -114,10 +113,12 @@ class RandomAgent(Agent):
         continuous_possibilities = self.actions.continuous_space
         c_actions = []
 
-        if continuous_possibilities.size != 0:
-            for min_, max_ in continuous_possibilities:
+        if continuous_possibilities.size // 2 == 1:   # it has min and max for each var
+            for min_, max_ in continuous_possibilities.T:
                 a = np.random.rand() * (max_ - min_) + min_
                 c_actions.append(a)
+        elif continuous_possibilities.size // 2 > 1:
+            raise NotImplementedError
 
         return c_actions
 
