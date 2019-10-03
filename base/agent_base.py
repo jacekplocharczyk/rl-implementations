@@ -113,7 +113,7 @@ class RandomAgent(Agent):
         continuous_possibilities = self.actions.continuous_space
         c_actions = []
 
-        if continuous_possibilities.size // 2 == 1:   # it has min and max for each var
+        if continuous_possibilities.size // 2 == 1:  # it has min and max for each var
             for min_, max_ in continuous_possibilities.T:
                 a = np.random.rand() * (max_ - min_) + min_
                 c_actions.append(a)
