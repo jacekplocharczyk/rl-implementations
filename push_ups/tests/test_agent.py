@@ -1,7 +1,7 @@
 import gym
 import pytest
 
-from base import agent_base
+from push_ups import agent_base
 
 
 @pytest.fixture

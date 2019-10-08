@@ -1,7 +1,7 @@
 import gym
 import pytest
 
-from base import action
+from push_ups import action
 
 
 @pytest.fixture

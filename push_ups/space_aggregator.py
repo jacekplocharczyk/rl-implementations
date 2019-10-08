@@ -4,7 +4,7 @@ from abc import ABC, abstractproperty
 import gym
 import numpy as np
 
-from base import spaces
+from push_ups import spaces
 
 
 ALL_SPACES = [spaces.DiscreteSpace, spaces.BoxSpace]

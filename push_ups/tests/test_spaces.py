@@ -2,7 +2,7 @@ import gym
 import numpy as np
 import pytest
 
-from base import spaces
+from push_ups import spaces
 
 
 @pytest.fixture

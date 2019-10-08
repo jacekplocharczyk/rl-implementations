@@ -1,7 +1,7 @@
 import gym
 import numpy as np
 
-from base import space_aggregator
+from push_ups import space_aggregator
 
 
 class Actions(space_aggregator.SpaceAggregator):

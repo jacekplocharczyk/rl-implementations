@@ -1,8 +1,8 @@
 import gym
 import pytest
 
-from base.space_aggregator import SpaceAggregator
-from base.spaces import DiscreteSpace
+from push_ups.space_aggregator import SpaceAggregator
+from push_ups.spaces import DiscreteSpace
 
 
 @pytest.fixture

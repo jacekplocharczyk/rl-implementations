@@ -2,7 +2,7 @@ import gym
 import pytest
 import numpy as np
 
-from base import observation
+from push_ups import observation
 
 
 @pytest.fixture

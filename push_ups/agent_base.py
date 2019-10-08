@@ -7,7 +7,7 @@ from typing import List
 import gym
 import numpy as np
 
-from base import action, observation
+from push_ups import action, observation
 
 
 class Agent(ABC):
