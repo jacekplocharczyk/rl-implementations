@@ -1,0 +1,50 @@
+class EpisodeDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        states: torch.tensor,
+        actions: torch.tensor,
+        rewards: torch.tensor,
+        gamma: float,
+    ):
+        print(states.shape, actions.shape, rewards.shape)
+        assert len(states) == len(rewards)
+        assert len(states) == len(actions)
+
+        self.gamma = gamma
+        returns = self.calculate_returns(rewards)
+        # self.data = torch.cat([states, returns], dim=1)
+        self.states = states
+        self.returns = returns
+        self.actions = actions
+
+    def __len__(self) -> int:
+        return len(self.states)
+
+    def __getitem__(self, idx) -> Tuple[torch.tensor, torch.tensor]:
+        return (
+            self.states[idx],
+            self.actions[idx],
+            self.returns[idx],
+            -self.actions[idx] * self.returns[idx],
+        )
+
+    def calculate_returns(self, rewards: `torch.tensor) -> torch.tensor:
+        returns = torch.flip(rewards, [0])
+        for idx, item in enumerate(returns):
+            if idx == 0:
+                continue
+            returns[idx] = item + self.gamma * returns[idx - 1]
+        return torch.flip(returns, [0])
+
+
+obs_size = self.get_observations()
+act_size = self.get_actions()
+self.observations = torch.Tensor(0, obs_size).float()
+self.log_action_probabilities = torch.Tensor(0, act_size).float()
+
+
+"""
+jupyter labextension install @ryantam626/jupyterlab_code_formatter
+conda install -c conda-forge jupyterlab_code_formatter
+jupyter serverextension enable --py jupyterlab_code_formatter
+"""
