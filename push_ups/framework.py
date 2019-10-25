@@ -18,10 +18,14 @@ def train_agent(
 ) -> agent_base.Agent:
 
     for i in range(steps):
+        agent.switch_to_cpu()
+
         actions, observations, rewards = run_simulations_on_all_cores(
             agent, env_name, batch_size
         )
-        # agent.update_policy(actions, observations, rewards)
+        agent.switch_to_gpu()
+
+        agent.update_policy(actions, observations, rewards)
         print_stats(rewards, i)
 
     return agent
@@ -57,6 +61,12 @@ def run_simulations_on_all_cores(
             actions += acts
             observations += obs
             rewards += rews
+    # acts, obs, rews = collect_actions_observations_rewards(
+    #     agent, env_name, steps_per_core
+    # )
+    # actions += acts
+    # observations += obs
+    # rewards += rews
 
     return actions, observations, rewards
 
@@ -99,13 +109,10 @@ def run_episode(
 
     while True:
         i += 1
-        # computional_action is used for calculating policy or q/v value update
-        # it depends on the algorithm used (e.g. for REINFORCE in discrete case it's
-        # log probability of taking specific action)
-        action, computional_action = agent(obs)
+        action = agent(obs)
         obs, reward, done, _ = env.step(action)
 
-        actions.append(computional_action)
+        actions.append(action)
         rewards = torch.cat([rewards, torch.tensor(reward).view(1, 1).float()])
 
         if done or i >= timesteps:
@@ -151,8 +158,18 @@ class PolicyAgent(agent_base.Agent):
         :param: gamma: discount factor used to calculate return
         :param: lr: learning rate used in the torch optimizer
         """
+        # TODO add logs if cuda is unavailable
+        self.gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.cpu = torch.device("cpu")
+
         super().__init__(env, gamma, lr, *args, **kwargs)
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr)
+
+    def switch_to_cpu(self):
+        self.policy.to(self.cpu)
+
+    def switch_to_gpu(self):
+        self.policy.to(self.gpu)
 
     def take_action(self, observation: np.array, *args, **kwargs) -> Tuple[Any, Any]:
         """
@@ -164,12 +181,26 @@ class PolicyAgent(agent_base.Agent):
             raise NotImplementedError
 
         observation = torch.from_numpy(observation).float().unsqueeze(0)
-        probabilities = self.policy(observation)
+
+        with torch.no_grad():
+            probabilities = self.policy(observation)
 
         m = Categorical(probabilities)
         action = m.sample()
-        log_prob = m.log_prob(action)
-        return action.item(), log_prob
+
+        return action.item()
+
+    def get_action_log_probabilty(self, observation: torch.tensor, action: int) -> Any:  # TODO add return type
+        if not self.discrete_actions:
+            raise NotImplementedError
+
+        observation = observation.unsqueeze(0).to(self.gpu)
+        action = torch.tensor(action).to(self.gpu)
+        probabilities = self.policy(observation)
+
+        distribution = Categorical(probabilities)
+        log_prob = distribution.log_prob(action)
+        return log_prob
 
     def get_policy(self) -> nn.Module:
         inputs_no = self.get_observations()
@@ -180,26 +211,27 @@ class PolicyAgent(agent_base.Agent):
     def update_policy(self, actions, observations, rewards, *args, **kwargs):
         del args, kwargs  # unused
         dataset = Batch(actions, observations, rewards, self.gamma)
-        dataloader = torch.DataLoader(
-            dataset, batch_size=4, shuffle=True, num_workers=4
-        )
 
-        for act, ret, obs in dataloaders:
-            
-            inputs = inputs.to(device)
-            labels = labels.to(device)
+        # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        # device = torch.device("cpu")
 
-
-        policy_loss = []
-        for log_prob, R in zip(self.log_action_probabilities, returns):
-            policy_loss.append(-log_prob * R)
-
+        # self.policy = self.policy.to(device)
+        # self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=0.01)  # TODO learning rate
+        loss = torch.tensor([]).float().to(self.gpu)
+        for act, ret, obs in dataset:
+            log_prob = self.get_action_log_probabilty(obs, act)
+           
+            ep_loss = -log_prob * ret.to(self.gpu)
+            loss = torch.cat([loss, ep_loss])
+        
+        loss = loss.sum()
+        
         self.optimizer.zero_grad()
-        policy_loss = torch.cat(policy_loss).sum()
-        policy_loss.backward()
+        loss.backward()
         self.optimizer.step()
 
-        del self.log_action_probabilities[:]
+        # cpu_device = torch.device("cpu")
+        # self.policy = self.policy.to(cpu_device)
 
     def calculate_returns(self, rewards: torch.tensor) -> torch.tensor:
         returns = torch.flip(rewards, [0])
@@ -210,7 +242,7 @@ class PolicyAgent(agent_base.Agent):
         return torch.flip(returns, [0])
 
 
-class Batch(torch.Dataset):
+class Batch(torch.utils.data.Dataset):
     def __init__(
         self,
         actions: List[List[torch.tensor]],
@@ -218,28 +250,35 @@ class Batch(torch.Dataset):
         rewards: List[torch.tensor],
         gamma: float = 0.9,
     ):
-
-        self.actions = self.get_actions()
+        self.gamma = gamma
+        self.actions = self.get_actions(actions)
         self.returns = self.get_returns(rewards)
         self.observations = self.get_observations(observations)
+        self.indices = np.random.permutation(len(self.actions))
 
-        assert self.actions.shape[0] == self.returns.shape[0]
-        assert self.actions.shape[0] == self.observations.shape[0]
+        assert len(self.actions) == self.returns.shape[0]
+        assert self.returns.shape[0] == self.observations.shape[0]
 
     def __len__(self):
-        return self.actions.shape[0]
+        return self.returns.shape[0]
 
     def __getitem__(self, idx):
-        act = self.actions[idx]
-        ret = self.returns[idx]
-        obs = self.observations[idx]
+        rand_index = self.indices[idx]
+        act = self.actions[rand_index]
+        ret = self.returns[rand_index]
+        obs = self.observations[rand_index]
 
         return act, ret, obs
 
     @staticmethod
-    def get_actions(actions: List[List[torch.tensor]]) -> torch.tensor:
+    def get_actions(actions: List[List[torch.tensor]]) -> List[torch.tensor]:
         """ Version for log probabilities of taking discrete action """
-        return torch.tensor(actions)
+        a = []
+        for episode in actions:
+            for timestep_action in episode:
+                a.append(timestep_action)
+
+        return a
 
     def get_returns(self, rewards: List[torch.tensor]) -> torch.tensor:
         """
@@ -250,7 +289,7 @@ class Batch(torch.Dataset):
 
         for ep_returns in returns:
             returns_all = torch.cat(
-                [returns_all, torch.tensor(ep_returns).view(-1, 1).float()]
+                [returns_all, ep_returns.view(-1, 1).float()]
             )
 
         # normalization
@@ -262,13 +301,12 @@ class Batch(torch.Dataset):
     @staticmethod
     def get_observations(observations: List[torch.tensor]) -> torch.tensor:
         assert len(observations) > 0
-        observations = torch.tensor([]).view(-1, len(observations[0])).float()
+        observation_dim = observations[0].shape[1]
+        obs_tensor = torch.tensor([]).view(-1, observation_dim).float()
         for ep_observations in observations:
-            observations = torch.cat(
-                [observations, ep_observations.view(-1, len(ep_observations)).float()]
-            )
+            obs_tensor = torch.cat([obs_tensor, ep_observations])
 
-        return observations
+        return obs_tensor
 
     def calculate_epiosde_returns(self, rewards: torch.tensor) -> torch.tensor:
         returns = torch.flip(rewards, [0])
@@ -289,9 +327,9 @@ if __name__ == "__main__":
     env_name = "CartPole-v1"
     env = gym.make(env_name)
 
-    agent = agent_base.RandomAgent(env)
-    batch_size = 200000
-    steps = 5
+    agent = PolicyAgent(env)
+    batch_size = 20000
+    steps = 20
 
     # run_simulations_on_all_cores(agent, env_name, batch_size)
 
