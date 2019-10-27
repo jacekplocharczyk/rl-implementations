@@ -78,6 +78,12 @@ class Agent(ABC):
             # continuous space array has (min, max) values for each variable
             return self.observations.continuous_space.size // 2
 
+    def switch_to_cpu(self):
+        pass
+
+    def switch_to_gpu(self):
+        pass
+
     def describe(self) -> str:
         """
         Print out info about the agent.
