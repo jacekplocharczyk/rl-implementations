@@ -1,10 +1,10 @@
 import concurrent.futures
-import multiprocessing
 from typing import List, Tuple
 
 import gym
 import numpy as np
 import torch
+from torch import multiprocessing
 
 from push_ups import agent_base
 
@@ -15,18 +15,26 @@ def train_agent(
     steps: int,
     bath_size: int,
     stats: bool = True,
+    stats_frequency: int = 1,
 ) -> agent_base.Agent:
 
     for i in range(steps):
         agent.switch_to_cpu()
+        # profiler.check_to_cpu(agent.switch_to_cpu)
 
         actions, observations, rewards = run_simulations_on_all_cores(
             agent, env_name, batch_size
         )
+        # actions, observations, rewards = profiler.check_collect_data(
+        #     run_simulations_on_all_cores, agent, env_name, batch_size
+        # )
         agent.switch_to_gpu()
+        # profiler.check_to_gpu(agent.switch_to_gpu)
 
         agent.update_policy(actions, observations, rewards)
-        print_stats(rewards, i)
+        # profiler.check_update(agent.update_policy, actions, observations, rewards)
+        if stats and i % stats_frequency == 0:
+            print_stats(rewards, i)
 
     return agent
 
@@ -39,31 +47,33 @@ def run_simulations_on_all_cores(
     observations, and rewards.
     """
 
-    cores = get_cores() * 8  # multiple processes per core works better
+    cores = get_cores()
     steps_per_core = batch_size // cores
+    # cores = 1
 
     actions = []
     observations = []
     rewards = []
 
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with multiprocessing.Pool(cores) as p:
+        collected_data = p.map(
+            collect_actions_observations_rewards,
+            [(agent, env_name, steps_per_core)] * cores,
+        )
 
-        results = [
-            executor.submit(
-                collect_actions_observations_rewards, agent, env_name, steps_per_core
-            )
-            for _ in range(cores)
-        ]
-
-        for f in concurrent.futures.as_completed(results):
-            acts, obs, rews = f.result()
-
+        for acts, obs, rews in collected_data:
+            # print(type(acts), len(acts))
             actions += acts
             observations += obs
             rewards += rews
+
     # acts, obs, rews = collect_actions_observations_rewards(
-    #     agent, env_name, steps_per_core
+    #     (agent, env_name, steps_per_core)
     # )
+
+    # acts, obs, rews = profiler.check_run_single_collect_data(
+    #     collect_actions_observations_rewards, (agent, env_name, steps_per_core))
+
     # actions += acts
     # observations += obs
     # rewards += rews
@@ -72,9 +82,11 @@ def run_simulations_on_all_cores(
 
 
 def collect_actions_observations_rewards(
-    agent: agent_base.Agent, env_name: str, timesteps: int
+    data: Tuple
+    # agent: agent_base.Agent, env_name: str, timesteps: int
 ) -> Tuple[list, torch.Tensor, torch.Tensor]:
     np.random.RandomState().uniform()  # add randomness
+    agent, env_name, timesteps = data
 
     env = gym.make(env_name)
     i = 0
@@ -95,24 +107,27 @@ def collect_actions_observations_rewards(
 
 def run_episode(
     agent: agent_base.Agent, env: gym.Env, i: int, timesteps: int
-) -> Tuple[list, torch.Tensor, torch.Tensor, int]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]:
     """
     Perform one simulation (episode) to collect data for the policy update.
     You will collect data  until you reach timesteps limit.
-    Return actions list, observations tensor, rewards tensor and steps count.
+    Return actions tensor, observations tensor, rewards tensor and steps count.
     """
     obs = env.reset()
 
-    actions = []
+    actions = torch.Tensor(0, 1).float()
+    # actions = []
     observations = torch.tensor(obs).view(-1, len(obs)).float()
     rewards = torch.Tensor(0, 1).float()
 
     while True:
         i += 1
         action = agent(obs)
+
         obs, reward, done, _ = env.step(action)
 
-        actions.append(action)
+        # actions.append(action)
+        actions = torch.cat([actions, torch.tensor(action).view(1, 1).float()])
         rewards = torch.cat([rewards, torch.tensor(reward).view(1, 1).float()])
 
         if done or i >= timesteps:
@@ -140,7 +155,7 @@ from push_ups.utils.default_network import SimpleNet
 from torch.distributions import Categorical
 from push_ups.utils import default_network
 import sys
-from typing import Any, Tuple
+from typing import Any, Tuple, Union
 
 import gym
 from IPython import display
@@ -160,16 +175,19 @@ class PolicyAgent(agent_base.Agent):
         """
         # TODO add logs if cuda is unavailable
         self.gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        # self.gpu = torch.device("cpu")
         self.cpu = torch.device("cpu")
 
         super().__init__(env, gamma, lr, *args, **kwargs)
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr)
 
     def switch_to_cpu(self):
-        self.policy.to(self.cpu)
+        self.policy = self.policy.to(self.cpu)
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=0.01)
 
     def switch_to_gpu(self):
-        self.policy.to(self.gpu)
+        self.policy = self.policy.to(self.gpu)
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=0.01)
 
     def take_action(self, observation: np.array, *args, **kwargs) -> Tuple[Any, Any]:
         """
@@ -190,16 +208,17 @@ class PolicyAgent(agent_base.Agent):
 
         return action.item()
 
-    def get_action_log_probabilty(self, observation: torch.tensor, action: int) -> Any:  # TODO add return type
+    def get_action_log_probabilty(
+        self, observations: torch.tensor, actions: torch.tensor
+    ) -> Any:  # TODO add return type
         if not self.discrete_actions:
             raise NotImplementedError
 
-        observation = observation.unsqueeze(0).to(self.gpu)
-        action = torch.tensor(action).to(self.gpu)
-        probabilities = self.policy(observation)
+        # action = torch.tensor(action)
+        probabilities = self.policy(observations)
 
         distribution = Categorical(probabilities)
-        log_prob = distribution.log_prob(action)
+        log_prob = distribution.log_prob(actions.T).view(-1, 1)
         return log_prob
 
     def get_policy(self) -> nn.Module:
@@ -208,26 +227,36 @@ class PolicyAgent(agent_base.Agent):
         discrete_outputs = self.discrete_actions
         return default_network.SimpleNet(inputs_no, outputs_no, discrete_outputs)
 
+    
+    def get_loss(self, dataset):
+        act, ret, obs = dataset.get_data()
+        log_prob = self.get_action_log_probabilty(obs, act)
+
+        loss = -log_prob * ret
+        loss = loss.sum()
+        return loss
+
     def update_policy(self, actions, observations, rewards, *args, **kwargs):
         del args, kwargs  # unused
-        dataset = Batch(actions, observations, rewards, self.gamma)
+
+        dataset = Batch(actions, observations, rewards, self.gamma, self.gpu)
+        # dataset = profiler.check_batch(
+        #     Batch, actions, observations, rewards, self.gamma, self.gpu
+        # )
 
         # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         # device = torch.device("cpu")
 
         # self.policy = self.policy.to(device)
         # self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=0.01)  # TODO learning rate
-        loss = torch.tensor([]).float().to(self.gpu)
-        for act, ret, obs in dataset:
-            log_prob = self.get_action_log_probabilty(obs, act)
-           
-            ep_loss = -log_prob * ret.to(self.gpu)
-            loss = torch.cat([loss, ep_loss])
-        
-        loss = loss.sum()
-        
+
+        loss = self.get_loss(dataset)
+        # loss = profiler.check_loss(get_loss, dataset)
+
         self.optimizer.zero_grad()
         loss.backward()
+        # profiler.check_backward(loss.backward)
+
         self.optimizer.step()
 
         # cpu_device = torch.device("cpu")
@@ -245,40 +274,62 @@ class PolicyAgent(agent_base.Agent):
 class Batch(torch.utils.data.Dataset):
     def __init__(
         self,
-        actions: List[List[torch.tensor]],
+        actions: List[torch.tensor],
         observations: List[torch.tensor],
         rewards: List[torch.tensor],
         gamma: float = 0.9,
+        gpu: Union[torch.device, Any] = None,
     ):
         self.gamma = gamma
         self.actions = self.get_actions(actions)
         self.returns = self.get_returns(rewards)
         self.observations = self.get_observations(observations)
-        self.indices = np.random.permutation(len(self.actions))
+        if gpu:
+            self.actions = self.actions.to(gpu)
+            self.returns = self.returns.to(gpu)
+            self.observations = self.observations.to(gpu)
 
-        assert len(self.actions) == self.returns.shape[0]
+        self.randomize_rows()
+
+        # profiler.get_device(gpu)
+
+        assert self.actions.shape[0] == self.returns.shape[0]
         assert self.returns.shape[0] == self.observations.shape[0]
 
     def __len__(self):
         return self.returns.shape[0]
 
-    def __getitem__(self, idx):
-        rand_index = self.indices[idx]
-        act = self.actions[rand_index]
-        ret = self.returns[rand_index]
-        obs = self.observations[rand_index]
+    def __getitem__(self, idx):  # TODO add return
+        act = self.actions[idx]
+        ret = self.returns[idx]
+        obs = self.observations[idx]
 
         return act, ret, obs
 
-    @staticmethod
-    def get_actions(actions: List[List[torch.tensor]]) -> List[torch.tensor]:
-        """ Version for log probabilities of taking discrete action """
-        a = []
-        for episode in actions:
-            for timestep_action in episode:
-                a.append(timestep_action)
+    def get_data(self):  # TODO add return
+        return self.actions, self.returns, self.observations
 
-        return a
+    def randomize_rows(self):
+        indicies = np.random.permutation(self.actions.shape[0])
+        self.actions = self.actions[indicies]
+        self.returns = self.returns[indicies]
+        self.observations = self.observations[indicies]
+
+    @staticmethod
+    def get_actions(actions: List[torch.tensor]) -> torch.tensor:
+        """ Version for log probabilities of taking discrete action """
+        actions_all = torch.tensor([]).view(0, 1).float()
+        for episode_actions in actions:
+            actions_all = torch.cat(
+                [actions_all, episode_actions]
+            )
+            # for timestep_action in episode_actions:
+
+            #     actions_all = torch.cat(
+            #         [actions_all, torch.tensor(timestep_action).view(-1, 1).float()]
+            #     )
+
+        return actions_all
 
     def get_returns(self, rewards: List[torch.tensor]) -> torch.tensor:
         """
@@ -288,9 +339,7 @@ class Batch(torch.utils.data.Dataset):
         returns_all = torch.tensor([]).view(0, 1).float()
 
         for ep_returns in returns:
-            returns_all = torch.cat(
-                [returns_all, ep_returns.view(-1, 1).float()]
-            )
+            returns_all = torch.cat([returns_all, ep_returns.view(-1, 1).float()])
 
         # normalization
         eps = np.finfo(np.float32).eps.item()
@@ -320,16 +369,25 @@ class Batch(torch.utils.data.Dataset):
 ##############################################
 
 if __name__ == "__main__":
+    from push_ups.utils.profiler import Profiler
+    prof = Profiler()
     # import time
 
     # start = time.perf_counter()
+    run_simulations_on_all_cores = prof.check("run_simulations_on", run_simulations_on_all_cores)
+    Batch = prof.check("Batch", Batch)
+    PolicyAgent.get_loss = prof.check("get_loss", PolicyAgent.get_loss)
+
 
     env_name = "CartPole-v1"
     env = gym.make(env_name)
 
     agent = PolicyAgent(env)
-    batch_size = 20000
-    steps = 20
+    batch_size = 10_000
+    steps = 10
+
+
+    
 
     # run_simulations_on_all_cores(agent, env_name, batch_size)
 
@@ -337,4 +395,6 @@ if __name__ == "__main__":
 
     # print(f"Finished in {round(finish-start, 2)} seconds")
 
-    train_agent(agent, env_name, steps, batch_size)
+    train_agent(agent, env_name, steps, batch_size, stats=False)
+    # profiler.print()
+    prof.print()
